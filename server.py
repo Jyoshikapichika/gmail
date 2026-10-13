@@ -16,8 +16,19 @@ from urllib.parse import urlparse
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 PDF_FILENAME = "NOC26CS93S370700875.pdf"
-PDF_FILEPATH = os.path.join(PROJECT_DIR, PDF_FILENAME)
 PORT = int(os.environ.get("PORT", "8000"))
+
+
+def resolve_pdf_filepath():
+    candidates = [
+        os.environ.get("HALL_TICKET_PDF_PATH", "").strip(),
+        os.path.join(PROJECT_DIR, PDF_FILENAME),
+        f"/etc/secrets/{PDF_FILENAME}",
+    ]
+    for path in candidates:
+        if path and os.path.isfile(path):
+            return path
+    return os.path.join(PROJECT_DIR, PDF_FILENAME)
 
 
 class DemoEmailRequestHandler(SimpleHTTPRequestHandler):
@@ -34,16 +45,22 @@ class DemoEmailRequestHandler(SimpleHTTPRequestHandler):
         parsed_path = urlparse(self.path).path
         if parsed_path == "/favicon.ico":
             self.path = "/gmail-icon-192.png"
-        elif parsed_path == "/api/download-hallticket":
-            if not os.path.isfile(PDF_FILEPATH):
+        elif parsed_path in ("/api/download-hallticket", f"/{PDF_FILENAME}"):
+            pdf_filepath = resolve_pdf_filepath()
+            if not os.path.isfile(pdf_filepath):
                 self.send_response(404)
                 self.end_headers()
                 return
-            file_size = os.path.getsize(PDF_FILEPATH)
+            file_size = os.path.getsize(pdf_filepath)
+            disposition = (
+                "attachment"
+                if parsed_path == "/api/download-hallticket"
+                else "inline"
+            )
             self.send_response(200)
             self.send_header("Content-Type", "application/pdf")
             self.send_header(
-                "Content-Disposition", f'attachment; filename="{PDF_FILENAME}"'
+                "Content-Disposition", f'{disposition}; filename="{PDF_FILENAME}"'
             )
             self.send_header("Content-Length", str(file_size))
             self.send_header("Accept-Ranges", "bytes")
@@ -59,8 +76,9 @@ class DemoEmailRequestHandler(SimpleHTTPRequestHandler):
             return super().do_GET()
 
         if parsed_path == "/api/health":
-            exists = os.path.isfile(PDF_FILEPATH)
-            size = os.path.getsize(PDF_FILEPATH) if exists else 0
+            pdf_filepath = resolve_pdf_filepath()
+            exists = os.path.isfile(pdf_filepath)
+            size = os.path.getsize(pdf_filepath) if exists else 0
             payload = {
                 "status": "ok",
                 "demoMode": True,
@@ -80,10 +98,11 @@ class DemoEmailRequestHandler(SimpleHTTPRequestHandler):
                 pass
             return
 
-        if parsed_path == "/api/download-hallticket":
-            if not os.path.isfile(PDF_FILEPATH):
+        if parsed_path in ("/api/download-hallticket", f"/{PDF_FILENAME}"):
+            pdf_filepath = resolve_pdf_filepath()
+            if not os.path.isfile(pdf_filepath):
                 err = json.dumps({
-                    "error": f"Hall Ticket PDF ({PDF_FILENAME}) not found in {PROJECT_DIR}"
+                    "error": f"Hall Ticket PDF ({PDF_FILENAME}) not found."
                 }).encode("utf-8")
                 self.send_response(404)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -95,17 +114,22 @@ class DemoEmailRequestHandler(SimpleHTTPRequestHandler):
                     pass
                 return
 
-            file_size = os.path.getsize(PDF_FILEPATH)
+            file_size = os.path.getsize(pdf_filepath)
+            disposition = (
+                "attachment"
+                if parsed_path == "/api/download-hallticket"
+                else "inline"
+            )
             self.send_response(200)
             self.send_header("Content-Type", "application/pdf")
             self.send_header(
-                "Content-Disposition", f'attachment; filename="{PDF_FILENAME}"'
+                "Content-Disposition", f'{disposition}; filename="{PDF_FILENAME}"'
             )
             self.send_header("Content-Length", str(file_size))
             self.send_header("Accept-Ranges", "bytes")
             self.end_headers()
             try:
-                with open(PDF_FILEPATH, "rb") as f:
+                with open(pdf_filepath, "rb") as f:
                     while chunk := f.read(65536):
                         self.wfile.write(chunk)
             except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
@@ -129,13 +153,14 @@ def get_lan_ip():
 
 if __name__ == "__main__":
     lan_ip = get_lan_ip()
+    pdf_filepath = resolve_pdf_filepath()
     server = ThreadingHTTPServer(("0.0.0.0", PORT), DemoEmailRequestHandler)
     print("=" * 68)
     print(" Gmail-Style NPTEL Email Demo Server (Educational UI Project)")
     print("=" * 68)
     print(f" Local Desktop URL : http://localhost:{PORT}")
     print(f" Android / LAN URL : http://{lan_ip}:{PORT}")
-    print(f" Hall Ticket PDF   : {PDF_FILEPATH} (Exists: {os.path.isfile(PDF_FILEPATH)})")
+    print(f" Hall Ticket PDF   : {pdf_filepath} (Exists: {os.path.isfile(pdf_filepath)})")
     print("=" * 68)
     try:
         server.serve_forever()
