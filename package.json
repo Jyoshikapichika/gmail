@@ -1,0 +1,17 @@
+{
+  "name": "gmail",
+  "version": "1.0.0",
+  "description": "An educational college project demonstrating a responsive Gmail-inspired email dashboard with an NPTEL examination hall-ticket notification sample email and PDF attachment download/preview integration.",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/cli": "^8.5.3",
+    "@capacitor/core": "^8.5.3"
+  }
+}
